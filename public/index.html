@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suivi d'Entraînement des Coachs</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Suivi d'Entraînement des Coachs</h1>
+            <div class="coach-selector">
+                <select id="coachSelect">
+                    <option value="">Sélectionnez un Coach</option>
+                </select>
+            </div>
+        </header>
+
+
+        <!-- Main Content -->
+        <main id="mainContent" class="hidden">
+            <!-- Progress Dashboard -->
+            <section class="dashboard">
+                <h2>Progression d'Entraînement</h2>
+                <div class="progress-grid">
+                    <!-- Reformer Progress -->
+                    <div class="progress-card">
+                        <h3>Reformer</h3>
+                        <div class="progress-section">
+                            <h4>Pratique Personnelle</h4>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="reformerPracticeProgress"></div>
+                            </div>
+                            <p class="progress-text">
+                                <span id="reformerPracticeHours">0</span> / 22 heures
+                            </p>
+                        </div>
+                        <div class="progress-section">
+                            <h4>Observation</h4>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="reformerObservationProgress"></div>
+                            </div>
+                            <p class="progress-text">
+                                <span id="reformerObservationHours">0</span> / 5 heures
+                            </p>
+                        </div>
+                        <div class="total-progress">
+                            <strong>Total: <span id="reformerTotalHours">0</span> / 27 heures</strong>
+                        </div>
+                    </div>
+
+                    <!-- Mat Progress -->
+                    <div class="progress-card">
+                        <h3>Tapis</h3>
+                        <div class="progress-section">
+                            <h4>Pratique Personnelle</h4>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="matPracticeProgress"></div>
+                            </div>
+                            <p class="progress-text">
+                                <span id="matPracticeHours">0</span> / 12 heures
+                            </p>
+                        </div>
+                        <div class="progress-section">
+                            <h4>Observation</h4>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="matObservationProgress"></div>
+                            </div>
+                            <p class="progress-text">
+                                <span id="matObservationHours">0</span> / 3 heures
+                            </p>
+                        </div>
+                        <div class="total-progress">
+                            <strong>Total: <span id="matTotalHours">0</span> / 15 heures</strong>
+                        </div>
+                    </div>
+
+                    <!-- Chair Progress -->
+                    <div class="progress-card">
+                        <h3>Chaise</h3>
+                        <div class="progress-section">
+                            <h4>Pratique Personnelle</h4>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="chairPracticeProgress"></div>
+                            </div>
+                            <p class="progress-text">
+                                <span id="chairPracticeHours">0</span> / 12 heures
+                            </p>
+                        </div>
+                        <div class="progress-section">
+                            <h4>Observation</h4>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="chairObservationProgress"></div>
+                            </div>
+                            <p class="progress-text">
+                                <span id="chairObservationHours">0</span> / 3 heures
+                            </p>
+                        </div>
+                        <div class="total-progress">
+                            <strong>Total: <span id="chairTotalHours">0</span> / 15 heures</strong>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Add Session Form -->
+            <section class="add-session">
+                <h2>Ajouter une Séance d'Entraînement</h2>
+                <form id="addSessionForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sessionDate">Date:</label>
+                            <input type="date" id="sessionDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="sessionEquipment">Équipement:</label>
+                            <select id="sessionEquipment" required>
+                                <option value="">Sélectionnez l'équipement</option>
+                                <option value="reformer">Reformer</option>
+                                <option value="mat">Tapis</option>
+                                <option value="chair">Chaise</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sessionType">Type d'Entraînement:</label>
+                            <select id="sessionType" required>
+                                <option value="">Sélectionnez le type</option>
+                                <option value="practice">Pratique Personnelle</option>
+                                <option value="observation">Observation</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="sessionHours">Heures:</label>
+                            <input type="number" id="sessionHours" min="0.5" max="24" step="0.5" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary">Ajouter la Séance</button>
+                </form>
+            </section>
+
+            <!-- Session History -->
+            <section class="session-history">
+                <h2>Historique des Séances</h2>
+                <div class="history-controls">
+                    <select id="historyFilter">
+                        <option value="all">Toutes les Séances</option>
+                        <option value="reformer">Reformer</option>
+                        <option value="mat">Tapis</option>
+                        <option value="chair">Chaise</option>
+                    </select>
+                    <button id="clearHistoryBtn" class="btn-danger">Effacer Tout l'Historique</button>
+                </div>
+                <div class="sessions-list" id="sessionsList">
+                    <!-- Sessions will be populated here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Loading indicator -->
+    <div id="loadingIndicator" class="loading-indicator hidden">
+        <div class="spinner"></div>
+        <p>Chargement...</p>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>

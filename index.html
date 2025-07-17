@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coach Training Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Coach Training Tracker</h1>
+            <div class="coach-selector">
+                <select id="coachSelect">
+                    <option value="">Select a Coach</option>
+                </select>
+                <button id="addCoachBtn" class="btn-secondary">Add New Coach</button>
+            </div>
+        </header>
+
+        <!-- Add Coach Modal -->
+        <div id="addCoachModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>Add New Coach</h2>
+                <form id="addCoachForm">
+                    <div class="form-group">
+                        <label for="coachName">Coach Name:</label>
+                        <input type="text" id="coachName" required>
+                    </div>
+                    <button type="submit" class="btn-primary">Add Coach</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main id="mainContent" class="hidden">
+            <!-- Progress Dashboard -->
+            <section class="dashboard">
+                <h2>Training Progress</h2>
+                <div class="progress-grid">
+                    <!-- Reformer Progress -->
+                    <div class="progress-card">
+                        <h3>Reformer</h3>
+                        <div class="progress-section">
+                            <h4>Personal Practice</h4>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="reformerPracticeProgress"></div>
+                            </div>
+                            <p class="progress-text">
+                                <span id="reformerPracticeHours">0</span> / 22 hours
+                            </p>
+                        </div>
+                        <div class="progress-section">
+                            <h4>Observation</h4>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="reformerObservationProgress"></div>
+                            </div>
+                            <p class="progress-text">
+                                <span id="reformerObservationHours">0</span> / 5 hours
+                            </p>
+                        </div>
+                        <div class="total-progress">
+                            <strong>Total: <span id="reformerTotalHours">0</span> / 27 hours</strong>
+                        </div>
+                    </div>
+
+                    <!-- Mat Progress -->
+                    <div class="progress-card">
+                        <h3>Mat</h3>
+                        <div class="progress-section">
+                            <h4>Personal Practice</h4>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="matPracticeProgress"></div>
+                            </div>
+                            <p class="progress-text">
+                                <span id="matPracticeHours">0</span> / 12 hours
+                            </p>
+                        </div>
+                        <div class="progress-section">
+                            <h4>Observation</h4>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="matObservationProgress"></div>
+                            </div>
+                            <p class="progress-text">
+                                <span id="matObservationHours">0</span> / 3 hours
+                            </p>
+                        </div>
+                        <div class="total-progress">
+                            <strong>Total: <span id="matTotalHours">0</span> / 15 hours</strong>
+                        </div>
+                    </div>
+
+                    <!-- Chair Progress -->
+                    <div class="progress-card">
+                        <h3>Chair</h3>
+                        <div class="progress-section">
+                            <h4>Personal Practice</h4>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="chairPracticeProgress"></div>
+                            </div>
+                            <p class="progress-text">
+                                <span id="chairPracticeHours">0</span> / 12 hours
+                            </p>
+                        </div>
+                        <div class="progress-section">
+                            <h4>Observation</h4>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="chairObservationProgress"></div>
+                            </div>
+                            <p class="progress-text">
+                                <span id="chairObservationHours">0</span> / 3 hours
+                            </p>
+                        </div>
+                        <div class="total-progress">
+                            <strong>Total: <span id="chairTotalHours">0</span> / 15 hours</strong>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Add Session Form -->
+            <section class="add-session">
+                <h2>Add Training Session</h2>
+                <form id="addSessionForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sessionDate">Date:</label>
+                            <input type="date" id="sessionDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="sessionEquipment">Equipment:</label>
+                            <select id="sessionEquipment" required>
+                                <option value="">Select Equipment</option>
+                                <option value="reformer">Reformer</option>
+                                <option value="mat">Mat</option>
+                                <option value="chair">Chair</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sessionType">Training Type:</label>
+                            <select id="sessionType" required>
+                                <option value="">Select Type</option>
+                                <option value="practice">Personal Practice</option>
+                                <option value="observation">Observation</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="sessionHours">Hours:</label>
+                            <input type="number" id="sessionHours" min="0.5" max="24" step="0.5" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary">Add Session</button>
+                </form>
+            </section>
+
+            <!-- Session History -->
+            <section class="session-history">
+                <h2>Session History</h2>
+                <div class="history-controls">
+                    <select id="historyFilter">
+                        <option value="all">All Sessions</option>
+                        <option value="reformer">Reformer</option>
+                        <option value="mat">Mat</option>
+                        <option value="chair">Chair</option>
+                    </select>
+                    <button id="clearHistoryBtn" class="btn-danger">Clear All History</button>
+                </div>
+                <div class="sessions-list" id="sessionsList">
+                    <!-- Sessions will be populated here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
