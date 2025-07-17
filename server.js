@@ -1,8 +1,10 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
+require('dotenv').config();
+
+const db = require('./database/postgres');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,15 +17,16 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Database connection
-const dbPath = path.join(__dirname, 'database', 'coach_tracking.db');
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('Error opening database:', err.message);
+// Initialize database tables on startup
+async function initializeDatabase() {
+    try {
+        await db.initializeTables();
+        console.log('Database initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize database:', error);
         process.exit(1);
     }
-    console.log('Connected to SQLite database.');
-});
+}
 
 // Training objectives (hours required for each equipment and type)
 const TRAINING_OBJECTIVES = {
@@ -47,64 +50,61 @@ const TRAINING_OBJECTIVES = {
 // Routes
 
 // Get all coaches
-app.get('/api/coaches', (req, res) => {
-    db.all('SELECT * FROM coaches ORDER BY name', [], (err, rows) => {
-        if (err) {
-            console.error('Error fetching coaches:', err.message);
-            res.status(500).json({ error: 'Internal server error' });
-            return;
-        }
-        res.json(rows);
-    });
+app.get('/api/coaches', async (req, res) => {
+    try {
+        const result = await db.query('SELECT * FROM coaches ORDER BY name');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching coaches:', err.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // Create a new coach
-app.post('/api/coaches', (req, res) => {
+app.post('/api/coaches', async (req, res) => {
     const { name } = req.body;
     
     if (!name || !name.trim()) {
         return res.status(400).json({ error: 'Coach name is required' });
     }
 
-    db.run('INSERT INTO coaches (name) VALUES (?)', [name.trim()], function(err) {
-        if (err) {
-            if (err.message.includes('UNIQUE constraint failed')) {
-                return res.status(409).json({ error: 'Coach name already exists' });
-            }
-            console.error('Error creating coach:', err.message);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-        
+    try {
+        const result = await db.query('INSERT INTO coaches (name) VALUES ($1) RETURNING *', [name.trim()]);
         res.status(201).json({ 
-            id: this.lastID, 
-            name: name.trim(),
+            id: result.rows[0].id, 
+            name: result.rows[0].name,
             message: 'Coach created successfully' 
         });
-    });
+    } catch (err) {
+        if (err.code === '23505') { // PostgreSQL unique constraint violation
+            return res.status(409).json({ error: 'Coach name already exists' });
+        }
+        console.error('Error creating coach:', err.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // Get sessions for a specific coach
-app.get('/api/coaches/:id/sessions', (req, res) => {
+app.get('/api/coaches/:id/sessions', async (req, res) => {
     const coachId = req.params.id;
     
-    db.all(`
-        SELECT s.*, c.name as coach_name 
-        FROM sessions s 
-        JOIN coaches c ON s.coach_id = c.id 
-        WHERE s.coach_id = ? 
-        ORDER BY s.date DESC, s.created_at DESC
-    `, [coachId], (err, rows) => {
-        if (err) {
-            console.error('Error fetching sessions:', err.message);
-            res.status(500).json({ error: 'Internal server error' });
-            return;
-        }
-        res.json(rows);
-    });
+    try {
+        const result = await db.query(`
+            SELECT s.*, c.name as coach_name 
+            FROM sessions s 
+            JOIN coaches c ON s.coach_id = c.id 
+            WHERE s.coach_id = $1 
+            ORDER BY s.date DESC, s.created_at DESC
+        `, [coachId]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching sessions:', err.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // Add a new session for a coach
-app.post('/api/coaches/:id/sessions', (req, res) => {
+app.post('/api/coaches/:id/sessions', async (req, res) => {
     const coachId = req.params.id;
     const { date, equipment, type, hours } = req.body;
     
@@ -125,72 +125,65 @@ app.post('/api/coaches/:id/sessions', (req, res) => {
         return res.status(400).json({ error: 'Hours must be between 0.5 and 24' });
     }
 
-    // Check if coach exists
-    db.get('SELECT id FROM coaches WHERE id = ?', [coachId], (err, coach) => {
-        if (err) {
-            console.error('Error checking coach:', err.message);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
+    try {
+        // Check if coach exists
+        const coachResult = await db.query('SELECT id FROM coaches WHERE id = $1', [coachId]);
         
-        if (!coach) {
+        if (coachResult.rows.length === 0) {
             return res.status(404).json({ error: 'Coach not found' });
         }
 
         // Insert session
-        db.run(`
+        const sessionResult = await db.query(`
             INSERT INTO sessions (coach_id, date, equipment, type, hours) 
-            VALUES (?, ?, ?, ?, ?)
-        `, [coachId, date, equipment, type, hours], function(err) {
-            if (err) {
-                console.error('Error creating session:', err.message);
-                return res.status(500).json({ error: 'Internal server error' });
-            }
-            
-            res.status(201).json({ 
-                id: this.lastID,
-                coach_id: coachId,
-                date,
-                equipment,
-                type,
-                hours,
-                message: 'Session added successfully' 
-            });
+            VALUES ($1, $2, $3, $4, $5) 
+            RETURNING *
+        `, [coachId, date, equipment, type, hours]);
+        
+        res.status(201).json({ 
+            id: sessionResult.rows[0].id,
+            coach_id: coachId,
+            date,
+            equipment,
+            type,
+            hours,
+            message: 'Session added successfully' 
         });
-    });
+    } catch (err) {
+        console.error('Error creating session:', err.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // Delete a session
-app.delete('/api/sessions/:id', (req, res) => {
+app.delete('/api/sessions/:id', async (req, res) => {
     const sessionId = req.params.id;
     
-    db.run('DELETE FROM sessions WHERE id = ?', [sessionId], function(err) {
-        if (err) {
-            console.error('Error deleting session:', err.message);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
+    try {
+        const result = await db.query('DELETE FROM sessions WHERE id = $1', [sessionId]);
         
-        if (this.changes === 0) {
+        if (result.rowCount === 0) {
             return res.status(404).json({ error: 'Session not found' });
         }
         
         res.json({ message: 'Session deleted successfully' });
-    });
+    } catch (err) {
+        console.error('Error deleting session:', err.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // Get progress summary for a coach
-app.get('/api/coaches/:id/progress', (req, res) => {
+app.get('/api/coaches/:id/progress', async (req, res) => {
     const coachId = req.params.id;
     
-    db.all(`
-        SELECT equipment, type, SUM(hours) as total_hours 
-        FROM sessions 
-        WHERE coach_id = ? 
-        GROUP BY equipment, type
-    `, [coachId], (err, rows) => {
-        if (err) {
-            console.error('Error fetching progress:', err.message);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
+    try {
+        const result = await db.query(`
+            SELECT equipment, type, SUM(hours) as total_hours 
+            FROM sessions 
+            WHERE coach_id = $1 
+            GROUP BY equipment, type
+        `, [coachId]);
         
         // Initialize progress structure
         const progress = {
@@ -200,9 +193,9 @@ app.get('/api/coaches/:id/progress', (req, res) => {
         };
         
         // Fill in actual hours
-        rows.forEach(row => {
+        result.rows.forEach(row => {
             if (progress[row.equipment] && progress[row.equipment][row.type] !== undefined) {
-                progress[row.equipment][row.type] = row.total_hours;
+                progress[row.equipment][row.type] = parseFloat(row.total_hours);
             }
         });
         
@@ -220,24 +213,27 @@ app.get('/api/coaches/:id/progress', (req, res) => {
         });
         
         res.json(progress);
-    });
+    } catch (err) {
+        console.error('Error fetching progress:', err.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // Clear all sessions for a coach
-app.delete('/api/coaches/:id/sessions', (req, res) => {
+app.delete('/api/coaches/:id/sessions', async (req, res) => {
     const coachId = req.params.id;
     
-    db.run('DELETE FROM sessions WHERE coach_id = ?', [coachId], function(err) {
-        if (err) {
-            console.error('Error clearing sessions:', err.message);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
+    try {
+        const result = await db.query('DELETE FROM sessions WHERE coach_id = $1', [coachId]);
         
         res.json({ 
             message: 'All sessions cleared successfully',
-            deletedCount: this.changes
+            deletedCount: result.rowCount
         });
-    });
+    } catch (err) {
+        console.error('Error clearing sessions:', err.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // Serve the main HTML file
@@ -266,20 +262,23 @@ app.use((req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`API endpoints available at http://localhost:${PORT}/api/`);
+    
+    // Initialize database
+    await initializeDatabase();
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
     console.log('Shutting down server...');
-    db.close((err) => {
-        if (err) {
-            console.error('Error closing database:', err.message);
-        } else {
-            console.log('Database connection closed.');
-        }
+    try {
+        await db.closePool();
+        console.log('Database connection closed.');
         process.exit(0);
-    });
+    } catch (err) {
+        console.error('Error closing database:', err.message);
+        process.exit(1);
+    }
 });
