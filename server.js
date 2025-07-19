@@ -1,284 +1,310 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const path = require('path');
 require('dotenv').config();
 
-const db = require('./database/postgres');
+// Import des routes
+const coachesRoutes = require('./routes/coaches');
+const sessionsRoutes = require('./routes/sessions');
+
+// Import des modèles pour l'initialisation
+const Coach = require('./models/Coach');
+const { seedCoaches } = require('./utils/seed');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Serve static files
+// Servir les fichiers statiques
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Initialize database tables on startup
-async function initializeDatabase() {
+// Configuration MongoDB
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/coach_tracking';
+
+// Fonction pour se connecter à MongoDB
+async function connectToDatabase() {
     try {
-        await db.initializeTables();
-        console.log('Database initialized successfully');
+        await mongoose.connect(MONGODB_URI);
+        console.log('✅ Connecté à MongoDB');
+        
+        // Initialiser les coaches par défaut
+        await initializeDefaultCoaches();
+        
     } catch (error) {
-        console.error('Failed to initialize database:', error);
+        console.error('❌ Erreur de connexion à MongoDB:', error.message);
         process.exit(1);
     }
 }
 
-// Training objectives (hours required for each equipment and type)
-const TRAINING_OBJECTIVES = {
-    reformer: {
-        practice: 22,
-        observation: 5,
-        total: 27
-    },
-    mat: {
-        practice: 12,
-        observation: 3,
-        total: 15
-    },
-    chair: {
-        practice: 12,
-        observation: 3,
-        total: 15
-    }
-};
-
-// Routes
-
-// Get all coaches
-app.get('/api/coaches', async (req, res) => {
+// Fonction pour initialiser les coaches par défaut
+async function initializeDefaultCoaches() {
     try {
-        const result = await db.query('SELECT * FROM coaches ORDER BY name');
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Error fetching coaches:', err.message);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-// Create a new coach
-app.post('/api/coaches', async (req, res) => {
-    const { name } = req.body;
-    
-    if (!name || !name.trim()) {
-        return res.status(400).json({ error: 'Coach name is required' });
-    }
-
-    try {
-        const result = await db.query('INSERT INTO coaches (name) VALUES ($1) RETURNING *', [name.trim()]);
-        res.status(201).json({ 
-            id: result.rows[0].id, 
-            name: result.rows[0].name,
-            message: 'Coach created successfully' 
-        });
-    } catch (err) {
-        if (err.code === '23505') { // PostgreSQL unique constraint violation
-            return res.status(409).json({ error: 'Coach name already exists' });
+        const existingCoaches = await Coach.find();
+        
+        if (existingCoaches.length === 0) {
+            console.log('🌱 Création des coaches par défaut...');
+            await seedCoaches();
+        } else {
+            console.log(`📋 ${existingCoaches.length} coaches trouvés dans la base`);
         }
-        console.error('Error creating coach:', err.message);
-        res.status(500).json({ error: 'Internal server error' });
+    } catch (error) {
+        console.error('❌ Erreur lors de l\'initialisation des coaches:', error.message);
     }
-});
+}
 
-// Get sessions for a specific coach
+// Routes API
+app.use('/api/coaches', coachesRoutes);
+app.use('/api/sessions', sessionsRoutes);
+
+// Route pour compatibilité avec l'ancien frontend
 app.get('/api/coaches/:id/sessions', async (req, res) => {
-    const coachId = req.params.id;
-    
     try {
-        const result = await db.query(`
-            SELECT s.*, c.name as coach_name 
-            FROM sessions s 
-            JOIN coaches c ON s.coach_id = c.id 
-            WHERE s.coach_id = $1 
-            ORDER BY s.date DESC, s.created_at DESC
-        `, [coachId]);
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Error fetching sessions:', err.message);
-        res.status(500).json({ error: 'Internal server error' });
+        const Session = require('./models/Session');
+        const Coach = require('./models/Coach');
+        
+        const coachId = req.params.id;
+        
+        // Validate coach ID
+        if (!coachId || coachId === 'undefined' || coachId === 'null') {
+            return res.status(400).json({ error: 'ID coach invalide ou manquant' });
+        }
+        
+        const coach = await Coach.findById(coachId);
+        if (!coach) {
+            return res.status(404).json({ error: 'Coach non trouvé' });
+        }
+        
+        const sessions = await Session.find({ coachId: coachId })
+            .sort({ date: -1, createdAt: -1 })
+            .lean();
+        
+        // Formater les sessions pour l'ancien frontend
+        const formattedSessions = sessions.map(session => ({
+            id: session._id,
+            coach_id: session.coachId,
+            date: session.date.toISOString().split('T')[0],
+            equipment: session.equipment,
+            type: session.type,
+            hours: session.hours,
+            notes: session.notes,
+            created_at: session.createdAt
+        }));
+        
+        res.json(formattedSessions);
+    } catch (error) {
+        console.error('Erreur lors de la récupération des sessions:', error);
+        
+        if (error.name === 'CastError') {
+            return res.status(400).json({ error: 'ID coach invalide' });
+        }
+        
+        res.status(500).json({ error: 'Erreur serveur interne' });
     }
 });
 
-// Add a new session for a coach
+// Route pour ajouter une session (compatibilité frontend)
 app.post('/api/coaches/:id/sessions', async (req, res) => {
-    const coachId = req.params.id;
-    const { date, equipment, type, hours } = req.body;
-    
-    // Validation
-    if (!date || !equipment || !type || !hours) {
-        return res.status(400).json({ error: 'All fields are required' });
-    }
-    
-    if (!['reformer', 'mat', 'chair'].includes(equipment)) {
-        return res.status(400).json({ error: 'Invalid equipment type' });
-    }
-    
-    if (!['practice', 'observation'].includes(type)) {
-        return res.status(400).json({ error: 'Invalid training type' });
-    }
-    
-    if (hours <= 0 || hours > 24) {
-        return res.status(400).json({ error: 'Hours must be between 0.5 and 24' });
-    }
-
     try {
-        // Check if coach exists
-        const coachResult = await db.query('SELECT id FROM coaches WHERE id = $1', [coachId]);
+        const Session = require('./models/Session');
+        const Coach = require('./models/Coach');
         
-        if (coachResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Coach not found' });
+        const coach = await Coach.findById(req.params.id);
+        if (!coach) {
+            return res.status(404).json({ error: 'Coach non trouvé' });
         }
-
-        // Insert session
-        const sessionResult = await db.query(`
-            INSERT INTO sessions (coach_id, date, equipment, type, hours) 
-            VALUES ($1, $2, $3, $4, $5) 
-            RETURNING *
-        `, [coachId, date, equipment, type, hours]);
         
-        res.status(201).json({ 
-            id: sessionResult.rows[0].id,
-            coach_id: coachId,
-            date,
+        const { date, equipment, type, hours } = req.body;
+        
+        const session = new Session({
+            coachId: req.params.id,
+            date: new Date(date),
             equipment,
             type,
-            hours,
-            message: 'Session added successfully' 
+            hours: parseFloat(hours)
         });
-    } catch (err) {
-        console.error('Error creating session:', err.message);
-        res.status(500).json({ error: 'Internal server error' });
+        
+        const savedSession = await session.save();
+        
+        res.status(201).json({
+            id: savedSession._id,
+            coach_id: savedSession.coachId,
+            date: savedSession.date.toISOString().split('T')[0],
+            equipment: savedSession.equipment,
+            type: savedSession.type,
+            hours: savedSession.hours,
+            message: 'Session ajoutée avec succès'
+        });
+    } catch (error) {
+        console.error('Erreur lors de la création de la session:', error);
+        res.status(500).json({ error: 'Erreur serveur interne' });
     }
 });
 
-// Delete a session
+// Route pour supprimer une session (compatibilité frontend)
 app.delete('/api/sessions/:id', async (req, res) => {
-    const sessionId = req.params.id;
-    
     try {
-        const result = await db.query('DELETE FROM sessions WHERE id = $1', [sessionId]);
+        const Session = require('./models/Session');
         
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: 'Session not found' });
+        const session = await Session.findByIdAndDelete(req.params.id);
+        
+        if (!session) {
+            return res.status(404).json({ error: 'Session non trouvée' });
         }
         
-        res.json({ message: 'Session deleted successfully' });
-    } catch (err) {
-        console.error('Error deleting session:', err.message);
-        res.status(500).json({ error: 'Internal server error' });
+        res.json({ message: 'Session supprimée avec succès' });
+    } catch (error) {
+        console.error('Erreur lors de la suppression de la session:', error);
+        res.status(500).json({ error: 'Erreur serveur interne' });
     }
 });
 
-// Get progress summary for a coach
+// Route pour les progrès d'un coach (compatibilité frontend)
 app.get('/api/coaches/:id/progress', async (req, res) => {
-    const coachId = req.params.id;
-    
     try {
-        const result = await db.query(`
-            SELECT equipment, type, SUM(hours) as total_hours 
-            FROM sessions 
-            WHERE coach_id = $1 
-            GROUP BY equipment, type
-        `, [coachId]);
+        const Session = require('./models/Session');
+        const Coach = require('./models/Coach');
         
-        // Initialize progress structure
-        const progress = {
-            reformer: { practice: 0, observation: 0, total: 0 },
-            mat: { practice: 0, observation: 0, total: 0 },
-            chair: { practice: 0, observation: 0, total: 0 }
-        };
+        const coach = await Coach.findById(req.params.id);
+        if (!coach) {
+            return res.status(404).json({ error: 'Coach non trouvé' });
+        }
         
-        // Fill in actual hours
-        result.rows.forEach(row => {
-            if (progress[row.equipment] && progress[row.equipment][row.type] !== undefined) {
-                progress[row.equipment][row.type] = parseFloat(row.total_hours);
-            }
-        });
-        
-        // Calculate totals and percentages
-        Object.keys(progress).forEach(equipment => {
-            const practiceHours = progress[equipment].practice;
-            const observationHours = progress[equipment].observation;
-            progress[equipment].total = practiceHours + observationHours;
-            
-            // Add objectives and percentages
-            progress[equipment].objectives = TRAINING_OBJECTIVES[equipment];
-            progress[equipment].practicePercentage = Math.min(100, (practiceHours / TRAINING_OBJECTIVES[equipment].practice) * 100);
-            progress[equipment].observationPercentage = Math.min(100, (observationHours / TRAINING_OBJECTIVES[equipment].observation) * 100);
-            progress[equipment].totalPercentage = Math.min(100, (progress[equipment].total / TRAINING_OBJECTIVES[equipment].total) * 100);
-        });
-        
+        const progress = await Session.getCoachProgress(req.params.id);
         res.json(progress);
-    } catch (err) {
-        console.error('Error fetching progress:', err.message);
-        res.status(500).json({ error: 'Internal server error' });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des progrès:', error);
+        res.status(500).json({ error: 'Erreur serveur interne' });
     }
 });
 
-// Clear all sessions for a coach
+// Route pour supprimer toutes les sessions d'un coach (compatibilité frontend)
 app.delete('/api/coaches/:id/sessions', async (req, res) => {
-    const coachId = req.params.id;
-    
     try {
-        const result = await db.query('DELETE FROM sessions WHERE coach_id = $1', [coachId]);
+        const Session = require('./models/Session');
+        const Coach = require('./models/Coach');
         
-        res.json({ 
-            message: 'All sessions cleared successfully',
-            deletedCount: result.rowCount
+        const coach = await Coach.findById(req.params.id);
+        if (!coach) {
+            return res.status(404).json({ error: 'Coach non trouvé' });
+        }
+        
+        const result = await Session.deleteMany({ coachId: req.params.id });
+        
+        res.json({
+            message: 'Toutes les sessions ont été supprimées avec succès',
+            deletedCount: result.deletedCount
         });
-    } catch (err) {
-        console.error('Error clearing sessions:', err.message);
-        res.status(500).json({ error: 'Internal server error' });
+    } catch (error) {
+        console.error('Erreur lors de la suppression des sessions:', error);
+        res.status(500).json({ error: 'Erreur serveur interne' });
     }
 });
 
-// Serve the main HTML file
+// Route pour obtenir tous les coaches (compatibilité frontend)
+app.get('/api/coaches', async (req, res) => {
+    try {
+        const Coach = require('./models/Coach');
+        
+        const coaches = await Coach.find({ isActive: true })
+            .sort({ name: 1 })
+            .lean();
+        
+        // Formater pour l'ancien frontend
+        const formattedCoaches = coaches.map(coach => ({
+            id: coach._id,
+            name: coach.name,
+            email: coach.email,
+            phone: coach.phone,
+            created_at: coach.createdAt
+        }));
+        
+        res.json(formattedCoaches);
+    } catch (error) {
+        console.error('Erreur lors de la récupération des coaches:', error);
+        res.status(500).json({ error: 'Erreur serveur interne' });
+    }
+});
+
+// Route principale
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-    res.json({ 
-        status: 'OK', 
-        timestamp: new Date().toISOString(),
-        database: 'Connected'
-    });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-    console.error('Unhandled error:', err.stack);
-    res.status(500).json({ error: 'Something went wrong!' });
-});
-
-// 404 handler
-app.use((req, res) => {
-    res.status(404).json({ error: 'Route not found' });
-});
-
-// Start server
-app.listen(PORT, async () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`API endpoints available at http://localhost:${PORT}/api/`);
-    
-    // Initialize database
-    await initializeDatabase();
-});
-
-// Graceful shutdown
-process.on('SIGINT', async () => {
-    console.log('Shutting down server...');
+// Route de santé
+app.get('/api/health', async (req, res) => {
     try {
-        await db.closePool();
-        console.log('Database connection closed.');
+        const Coach = require('./models/Coach');
+        const Session = require('./models/Session');
+        
+        const coachCount = await Coach.countDocuments();
+        const sessionCount = await Session.countDocuments();
+        
+        res.json({
+            status: 'OK',
+            timestamp: new Date().toISOString(),
+            database: 'MongoDB - Connected',
+            stats: {
+                coaches: coachCount,
+                sessions: sessionCount
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'ERROR',
+            timestamp: new Date().toISOString(),
+            database: 'MongoDB - Error',
+            error: error.message
+        });
+    }
+});
+
+// Middleware de gestion des erreurs
+app.use((err, req, res, next) => {
+    console.error('Erreur non gérée:', err.stack);
+    res.status(500).json({ error: 'Erreur serveur interne' });
+});
+
+// Gestionnaire 404
+app.use((req, res) => {
+    res.status(404).json({ error: 'Route non trouvée' });
+});
+
+// Démarrer le serveur
+app.listen(PORT, async () => {
+    console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
+    console.log(`📊 API disponible sur http://localhost:${PORT}/api/`);
+    console.log(`🏠 Interface sur http://localhost:${PORT}/`);
+    
+    // Se connecter à MongoDB
+    await connectToDatabase();
+});
+
+// Gestion gracieuse de l'arrêt
+process.on('SIGINT', async () => {
+    console.log('\n🛑 Arrêt du serveur...');
+    try {
+        await mongoose.connection.close();
+        console.log('🔌 Connexion MongoDB fermée');
         process.exit(0);
     } catch (err) {
-        console.error('Error closing database:', err.message);
+        console.error('❌ Erreur lors de la fermeture:', err.message);
+        process.exit(1);
+    }
+});
+
+process.on('SIGTERM', async () => {
+    console.log('\n🛑 Signal SIGTERM reçu, arrêt du serveur...');
+    try {
+        await mongoose.connection.close();
+        console.log('🔌 Connexion MongoDB fermée');
+        process.exit(0);
+    } catch (err) {
+        console.error('❌ Erreur lors de la fermeture:', err.message);
         process.exit(1);
     }
 });

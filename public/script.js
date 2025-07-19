@@ -117,15 +117,19 @@ function updateCoachSelect() {
 async function handleCoachChange() {
     const coachId = coachSelect.value;
     
-    if (!coachId) {
+    if (!coachId || coachId === 'undefined' || coachId === '') {
         mainContent.classList.add('hidden');
         currentCoach = null;
         return;
     }
     
-    currentCoach = coaches.find(coach => coach.id == coachId);
-    mainContent.classList.remove('hidden');
+    currentCoach = coaches.find(coach => coach.id === coachId);
+    if (!currentCoach) {
+        console.error('Coach not found:', coachId);
+        return;
+    }
     
+    mainContent.classList.remove('hidden');
     await loadCoachData(coachId);
 }
 

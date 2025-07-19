@@ -1,137 +1,334 @@
-# Coach Training Tracker - Guide de Déploiement
+# Coach Training Tracker - MongoDB Edition
 
-## 🚀 Déploiement sur Render
+Application de suivi d'entraînement pour les coachs Pilates avec base de données MongoDB.
 
-### Étape 1 : Préparation du Code
+## 🚀 Aperçu
 
-Votre code est maintenant prêt pour PostgreSQL ! Assurez-vous que tous les fichiers sont commités sur GitHub.
+Cette application permet aux coachs de suivre leurs heures d'entraînement sur différents équipements Pilates :
+- **Reformer** : 22h pratique + 5h observation = 27h total
+- **Tapis** : 12h pratique + 3h observation = 15h total  
+- **Chaise** : 12h pratique + 3h observation = 15h total
 
-### Étape 2 : Créer la Base de Données PostgreSQL sur Render
+## 🏗️ Architecture
 
-1. **Connectez-vous à [render.com](https://render.com)**
-2. **Cliquez sur "New +" → "PostgreSQL"**
-3. **Configuration de la base :**
-   - **Name** : `coach-tracker-db`
-   - **Database** : `coach_tracker`
-   - **User** : `coach_user`
-   - **Region** : Choisissez proche de vous
-   - **Plan** : Free
-4. **Cliquez sur "Create Database"**
-5. **Copiez l'URL de connexion** (format : `postgresql://username:password@host:port/database`)
+### Backend
+- **Node.js** avec Express.js
+- **MongoDB** avec Mongoose ODM
+- **Validation** avec express-validator
+- **Architecture modulaire** (routes, modèles, utilitaires)
 
-### Étape 3 : Créer le Service Web
+### Frontend
+- **Interface française** complète
+- **Design responsive** 
+- **JavaScript vanilla** moderne
+- **API REST** intégrée
 
-1. **Cliquez sur "New +" → "Web Service"**
-2. **Connectez votre repository GitHub**
-3. **Configuration du service :**
-   - **Name** : `coach-tracker`
-   - **Environment** : `Node`
-   - **Region** : Même région que votre DB
-   - **Branch** : `main`
-   - **Build Command** : `npm install`
-   - **Start Command** : `npm start`
-   - **Plan** : Free
+## 📦 Installation
 
-### Étape 4 : Variables d'Environnement
+### Prérequis
+- Node.js 18+
+- MongoDB 6.0+ (local ou Atlas)
+- npm ou yarn
 
-Dans la section "Environment Variables" :
+### Étapes d'installation
 
-```
-DATABASE_URL = [URL copiée de votre PostgreSQL]
-NODE_ENV = production
-PORT = 10000
-```
-
-### Étape 5 : Déployer
-
-1. **Cliquez sur "Create Web Service"**
-2. **Le déploiement se lance automatiquement**
-3. **Attendez que le statut soit "Live"**
-
-### Étape 6 : Vérifier le Déploiement
-
-1. **Cliquez sur l'URL de votre service**
-2. **Vous devriez voir l'application fonctionner**
-3. **Les coachs Soukeyna et Fabacary sont automatiquement créés**
-
-## 🔧 Commandes Utiles
-
+1. **Cloner le projet**
 ```bash
-# Installer les dépendances
+git clone https://github.com/babakar7/coach-tracking.git
+cd coach-tracking
+```
+
+2. **Installer les dépendances**
+```bash
 npm install
+```
 
-# Démarrer en local (nécessite PostgreSQL local)
+3. **Configurer l'environnement**
+```bash
+cp .env.example .env
+```
+
+Éditer `.env` :
+```env
+MONGODB_URI=mongodb://localhost:27017/coach_tracking
+NODE_ENV=development
+PORT=3000
+```
+
+4. **Démarrer MongoDB**
+```bash
+# Si MongoDB est installé localement
+mongod
+
+# Ou utiliser Docker
+docker run -d -p 27017:27017 --name mongodb mongo:latest
+```
+
+5. **Initialiser la base de données**
+```bash
+npm run seed
+```
+
+6. **Démarrer l'application**
+```bash
 npm start
-
-# Démarrer en développement
+# ou pour le développement
 npm run dev
-
-# Test de santé de l'API
-curl https://votre-app.onrender.com/api/health
-```
-
-## 📋 Structure de l'Application
-
-```
-coach-track/
-├── server.js              # Serveur principal
-├── package.json           # Dépendances
-├── .env                   # Variables locales (ignoré par git)
-├── .gitignore            # Fichiers ignorés
-├── database/
-│   ├── postgres.js       # Connexion PostgreSQL
-│   └── init.js          # Initialisation (legacy)
-└── public/
-    ├── index.html        # Interface utilisateur
-    ├── styles.css        # Styles
-    └── script.js         # JavaScript frontend
 ```
 
 ## 🎯 Fonctionnalités
 
-- ✅ **Deux coachs fixes** : Soukeyna et Fabacary
-- ✅ **Suivi des heures** : Reformer, Tapis, Chaise
-- ✅ **Types d'entraînement** : Pratique personnelle, Observation
-- ✅ **Objectifs automatiques** : Calcul des pourcentages
-- ✅ **Interface française** : Entièrement traduite
-- ✅ **Base de données persistante** : PostgreSQL sur Render
-- ✅ **Responsive design** : Fonctionne sur mobile
+### ✅ Coaches
+- **Deux coaches prédéfinis** : Soukeyna et Fabacary
+- **Gestion complète** (CRUD) des coaches
+- **Validation** des données
+- **Soft delete** (désactivation au lieu de suppression)
 
-## 🔍 Objectifs d'Entraînement
+### ✅ Sessions d'entraînement
+- **Ajout** de sessions avec date, équipement, type et durée
+- **Validation** automatique des données
+- **Historique** complet des sessions
+- **Filtrage** par équipement
+- **Suppression** individuelle ou en masse
 
-| Équipement | Pratique | Observation | Total |
-|------------|----------|-------------|--------|
-| Reformer   | 22h      | 5h         | 27h    |
-| Tapis      | 12h      | 3h         | 15h    |
-| Chaise     | 12h      | 3h         | 15h    |
+### ✅ Suivi des progrès
+- **Calcul automatique** des pourcentages
+- **Visualisation** des progrès par équipement
+- **Objectifs** clairement définis
+- **Interface** intuitive avec barres de progression
 
-## 🛠️ Dépannage
+## 🗂️ Structure du projet
 
-### Erreur de Connexion Base de Données
-- Vérifiez que `DATABASE_URL` est correctement configurée
-- Assurez-vous que la base PostgreSQL est active
+```
+coach-track-mongodb/
+├── server.js              # Point d'entrée principal
+├── package.json           # Dépendances et scripts
+├── .env                   # Variables d'environnement
+├── models/                # Modèles Mongoose
+│   ├── Coach.js           # Modèle Coach
+│   └── Session.js         # Modèle Session
+├── routes/                # Routes API
+│   ├── coaches.js         # Routes des coaches
+│   └── sessions.js        # Routes des sessions
+├── utils/                 # Utilitaires
+│   └── seed.js           # Script d'initialisation
+└── public/               # Frontend
+    ├── index.html        # Interface utilisateur
+    ├── styles.css        # Styles CSS
+    └── script.js         # JavaScript frontend
+```
 
-### Erreur de Build
-- Vérifiez que `package.json` contient toutes les dépendances
-- Assurez-vous que `npm install` fonctionne localement
+## 🔧 Scripts disponibles
 
-### Application ne démarre pas
-- Vérifiez les logs dans Render Dashboard
-- Assurez-vous que `PORT` est défini à 10000
+```bash
+# Démarrer l'application
+npm start
 
-## 🔐 Sécurité
+# Développement avec rechargement automatique
+npm run dev
 
-- Les credentials de base de données sont dans les variables d'environnement
-- Le fichier `.env` est ignoré par git
-- SSL automatiquement activé sur Render
+# Initialiser la base de données
+npm run seed
 
-## 📞 Support
+# Initialiser avec des données d'exemple
+npm run seed -- --with-examples
+```
 
-Si vous rencontrez des problèmes :
-1. Vérifiez les logs dans Render Dashboard
-2. Testez l'API avec `/api/health`
-3. Assurez-vous que la base de données est accessible
+## 🌐 API Endpoints
+
+### Coaches
+- `GET /api/coaches` - Liste tous les coaches
+- `GET /api/coaches/:id` - Détails d'un coach
+- `POST /api/coaches` - Créer un coach
+- `PUT /api/coaches/:id` - Mettre à jour un coach
+- `DELETE /api/coaches/:id` - Supprimer un coach (soft delete)
+- `GET /api/coaches/:id/progress` - Progrès d'un coach
+
+### Sessions
+- `GET /api/coaches/:id/sessions` - Sessions d'un coach
+- `POST /api/coaches/:id/sessions` - Ajouter une session
+- `GET /api/sessions/:id` - Détails d'une session
+- `PUT /api/sessions/:id` - Mettre à jour une session
+- `DELETE /api/sessions/:id` - Supprimer une session
+- `DELETE /api/coaches/:id/sessions` - Supprimer toutes les sessions
+
+### Système
+- `GET /api/health` - État de santé de l'application
+
+## 🔐 Validation des données
+
+### Coaches
+- **Nom** : 2-50 caractères, unique
+- **Email** : Format email valide (optionnel)
+- **Téléphone** : Format mobile valide (optionnel)
+
+### Sessions
+- **Date** : Date valide, pas dans le futur
+- **Équipement** : reformer, mat, ou chair
+- **Type** : practice ou observation
+- **Heures** : 0.5-24h, multiples de 0.5
+- **Notes** : Texte libre jusqu'à 500 caractères (optionnel)
+
+## 🚀 Déploiement
+
+### MongoDB Atlas (Production)
+
+1. **Créer un cluster MongoDB Atlas**
+   - Aller sur [mongodb.com/atlas](https://www.mongodb.com/atlas)
+   - Créer un cluster gratuit
+   - Configurer l'utilisateur et l'IP whitelist
+
+2. **Configurer les variables d'environnement**
+```env
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/coach_tracking
+NODE_ENV=production
+PORT=10000
+```
+
+### Render.com
+
+1. **Créer un service web**
+   - Connecter le repository GitHub
+   - Configurer les variables d'environnement
+   - Déployer automatiquement
+
+2. **Variables d'environnement Render**
+```
+MONGODB_URI=mongodb+srv://...
+NODE_ENV=production
+PORT=10000
+```
+
+## 📊 Base de données
+
+### Collection `coaches`
+```javascript
+{
+  _id: ObjectId,
+  name: String,
+  email: String,
+  phone: String,
+  isActive: Boolean,
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+### Collection `sessions`
+```javascript
+{
+  _id: ObjectId,
+  coachId: ObjectId,
+  date: Date,
+  equipment: String,
+  type: String,
+  hours: Number,
+  notes: String,
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+## 🛠️ Développement
+
+### Ajouter un nouveau coach
+```bash
+curl -X POST http://localhost:3000/api/coaches \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Nouveau Coach", "email": "coach@example.com"}'
+```
+
+### Ajouter une session
+```bash
+curl -X POST http://localhost:3000/api/coaches/:id/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"date": "2025-01-20", "equipment": "reformer", "type": "practice", "hours": 2}'
+```
+
+## 🔍 Dépannage
+
+### Erreur de connexion MongoDB
+```bash
+# Vérifier que MongoDB est démarré
+mongosh --eval "db.runCommand({ping: 1})"
+
+# Vérifier les logs
+npm start 2>&1 | grep -i mongo
+```
+
+### Réinitialiser la base de données
+```bash
+# Supprimer toutes les données
+mongosh coach_tracking --eval "db.dropDatabase()"
+
+# Réinitialiser avec les données par défaut
+npm run seed
+```
+
+## 📝 Logs
+
+L'application génère des logs détaillés :
+- ✅ Connexions réussies
+- ❌ Erreurs de validation
+- 📊 Statistiques de la base
+- 🔄 Opérations CRUD
+
+## 🎨 Interface utilisateur
+
+- **Design moderne** avec gradients
+- **Responsive** pour mobile et desktop
+- **Français** intégral
+- **Notifications** toast
+- **Indicateurs** de progression visuels
+
+## 🚦 Tests
+
+### Test manuel des endpoints
+```bash
+# Santé de l'application
+curl http://localhost:3000/api/health
+
+# Liste des coaches
+curl http://localhost:3000/api/coaches
+
+# Progrès d'un coach
+curl http://localhost:3000/api/coaches/:id/progress
+```
+
+## 📈 Performances
+
+- **Indexes MongoDB** optimisés
+- **Connexion poolée** avec Mongoose
+- **Validation** côté client et serveur
+- **Gestion d'erreurs** robuste
+
+## 🔄 Changelog
+
+### Version 2.0.0 (MongoDB)
+- ✅ Migration complète vers MongoDB
+- ✅ Architecture modulaire
+- ✅ Validation robuste
+- ✅ Meilleure gestion des erreurs
+- ✅ Interface préservée
+
+### Version 1.0.0 (PostgreSQL)
+- ✅ Version initiale PostgreSQL
+- ✅ Interface française
+- ✅ Fonctionnalités de base
+
+## 🤝 Contribution
+
+Les contributions sont les bienvenues ! Veuillez :
+1. Fork le projet
+2. Créer une branche feature
+3. Committer les changements
+4. Pousser vers la branche
+5. Ouvrir une Pull Request
+
+## 📄 License
+
+MIT License - voir le fichier LICENSE pour plus de détails.
 
 ---
 
-**Votre application est maintenant déployée et prête à l'emploi !** 🎉
+**Développé avec ❤️ pour les coachs Pilates**
